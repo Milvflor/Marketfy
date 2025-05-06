@@ -1,0 +1,460 @@
+openapi: 3.0.3
+info:
+  title: Precios y Promociones API
+  description: API para gestionar precios base y promociones de productos por tienda (usando IDs numéricos incrementales donde aplica), y consultar precios finales.
+  version: 1.2.0
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Servidor de Desarrollo Local
+tags:
+  - name: Precios
+    description: Operaciones relacionadas con los precios base históricos.
+  - name: Promociones Definiciones
+    description: Operaciones para definir tipos de promociones (porcentaje).
+  - name: Promociones Aplicaciones
+    description: Operaciones para aplicar promociones definidas a tiendas/productos específicos.
+  - name: Consultas
+    description: Endpoints para realizar consultas complejas.
+  - name: Tiendas
+    description: Gestión de tiendas (CRUD completo no definido aquí).
+  - name: Productos
+    description: Gestión de productos (CRUD completo no definido aquí).
+
+paths:
+  /prices:
+    post:
+      tags:
+        - Precios
+      summary: Crea un nuevo registro de precio histórico.
+      description: Añade una nueva entrada de precio para un producto en una tienda específica (usando sus IDs numéricos), válido durante un intervalo de tiempo. No permite solapamiento con precios existentes para la misma tienda y producto. La BD genera un ID único para este registro de precio.
+      operationId: createPrice
+      requestBody:
+        description: Datos del nuevo precio a crear.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrecioInput' # Schema de entrada de Precio
+            examples:
+              valid:
+                summary: Ejemplo de precio válido
+                value:
+                  tiendaId: 1 # ID Numérico
+                  productoId: 101 # ID Numérico
+                  valor: 0.95
+                  tiempoVigenciaInicio: "2025-07-01T00:00:00Z"
+                  tiempoVigenciaFin: "2025-12-31T23:59:59Z"
+              invalidDateRange:
+                summary: Fechas inválidas (fin antes de inicio)
+                value:
+                  tiendaId: 1
+                  productoId: 101
+                  valor: 0.95
+                  tiempoVigenciaInicio: "2025-08-01T00:00:00Z"
+                  tiempoVigenciaFin: "2025-07-31T23:59:59Z"
+              invalidValue:
+                summary: Valor de precio negativo
+                value:
+                  tiendaId: 1
+                  productoId: 101
+                  valor: -1.50
+                  tiempoVigenciaInicio: "2025-07-01T00:00:00Z"
+                  tiempoVigenciaFin: "2025-12-31T23:59:59Z"
+              missingField:
+                summary: Falta un campo requerido (valor)
+                value:
+                  tiendaId: 1
+                  productoId: 101
+                  # valor: 0.95 # Campo faltante
+                  tiempoVigenciaInicio: "2025-07-01T00:00:00Z"
+                  tiempoVigenciaFin: "2025-12-31T23:59:59Z"
+              nonExistentFK:
+                 summary: ID de tienda que no existe
+                 value:
+                   tiendaId: 999 # ID Numérico inválido
+                   productoId: 101
+                   valor: 0.95
+                   tiempoVigenciaInicio: "2025-07-01T00:00:00Z"
+                   tiempoVigenciaFin: "2025-12-31T23:59:59Z"
+      responses:
+        '201':
+          description: Precio creado exitosamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Price created successfully.
+                  precioRegistroId: # El ID del registro de PRECIO
+                    type: integer
+                    description: El ID numérico autoincremental del registro de precio creado.
+                    example: 105
+              example:
+                message: Price created successfully.
+                precioRegistroId: 105
+        '400':
+           description: Solicitud inválida (campos faltantes, formato, fechas, o FK inexistente para Tienda/Producto).
+           content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/Error'
+               examples:
+                 invalidId:
+                   value: { message: "Invalid productoId (must be a number)." }
+                 fkViolation:
+                   value: { message: "Invalid reference ID (Store ID '999' does not exist)." }
+        '409':
+          description: Conflicto - El período de precio se solapa con uno existente para la misma tienda y producto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Price period overlaps with an existing price for this store and product.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /promotions/definitions:
+    post:
+      tags:
+        - Promociones Definiciones
+      summary: Crea una nueva definición de promoción.
+      description: Define un nuevo tipo de promoción basado en porcentaje de descuento. La BD genera un ID numérico único para esta definición.
+      operationId: createPromotionDefinition
+      requestBody:
+        description: Datos de la nueva definición de promoción (solo el porcentaje).
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromocionDefinicionInput'
+            examples:
+              valid:
+                summary: Definición válida
+                value:
+                  porcentajeDescuento: 15.50
+              invalidPercentage:
+                summary: Porcentaje fuera de rango
+                value:
+                  porcentajeDescuento: -10.00
+              missingField:
+                summary: Falta el porcentaje
+                value: {}
+      responses:
+        '201':
+          description: Definición de promoción creada exitosamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Promotion definition created successfully.
+                  promocionId: # El ID numérico de la DEFINICIÓN
+                    type: integer
+                    description: El ID numérico autoincremental de la definición creada.
+                    example: 5
+              example:
+                message: Promotion definition created successfully.
+                promocionId: 5
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /promotions/applications:
+    post:
+      tags:
+        - Promociones Aplicaciones
+      summary: Aplica una promoción existente a una combinación tienda/producto/período.
+      description: Crea un registro que indica que una promoción definida (identificada por su ID numérico) aplica a un producto (ID numérico) en una tienda (ID numérico) durante un período específico. Permite solapamientos. La BD genera un ID único para esta aplicación.
+      operationId: createPromotionApplication
+      requestBody:
+        description: Datos de la aplicación de promoción.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromocionAplicacionInput' # Schema de entrada de Aplicación
+            examples:
+              valid:
+                summary: Aplicación válida
+                value:
+                  tiendaId: 2       # ID Numérico
+                  productoId: 101    # ID Numérico
+                  promocionId: 5    # ID Numérico (de la definición)
+                  tiempoPVigenciaInicio: "2025-08-15T00:00:00Z"
+                  tiempoPVigenciaFin: "2025-08-31T23:59:59Z"
+              invalidDateRange:
+                summary: Fechas inválidas
+                value:
+                  tiendaId: 2
+                  productoId: 101
+                  promocionId: 5
+                  tiempoPVigenciaInicio: "2025-09-01T00:00:00Z"
+                  tiempoPVigenciaFin: "2025-08-31T23:59:59Z"
+              missingField:
+                summary: Falta el ID de promoción
+                value:
+                  tiendaId: 2
+                  productoId: 101
+                  # promocionId: 5 # Campo faltante
+                  tiempoPVigenciaInicio: "2025-08-15T00:00:00Z"
+                  tiempoPVigenciaFin: "2025-08-31T23:59:59Z"
+              nonExistentFK:
+                summary: ID de promoción que no existe
+                value:
+                  tiendaId: 2
+                  productoId: 101
+                  promocionId: 9999 # ID de promoción inválido
+                  tiempoPVigenciaInicio: "2025-08-15T00:00:00Z"
+                  tiempoPVigenciaFin: "2025-08-31T23:59:59Z"
+      responses:
+        '201':
+          description: Aplicación de promoción creada exitosamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Promotion application created successfully.
+                  aplicacionId: # El ID de la APLICACIÓN
+                    type: integer
+                    description: El ID numérico autoincremental del registro de aplicación creado.
+                    example: 2015
+              example:
+                message: Promotion application created successfully.
+                aplicacionId: 2015
+        '400': # Incluye FKs no existentes
+           description: Solicitud inválida (campos faltantes, formato, fechas, o FK inexistente para Tienda/Producto/PromociónDefinición).
+           content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/Error'
+               examples:
+                 missingField:
+                   value: { message: "Missing required fields: promocionId, ..." }
+                 fkViolation:
+                   value: { message: "Invalid reference ID (Promotion definition with ID '9999' does not exist)." }
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /queries/final-price:
+    get:
+      tags:
+        - Consultas
+      summary: Consulta el precio final de un producto en una tienda en un momento dado.
+      description: Calcula el precio final considerando el precio base activo y aplicando la promoción con el mayor porcentaje de descuento que esté activa en la fecha y hora especificadas (usando IDs numéricos para tienda y producto).
+      operationId: getFinalPrice
+      parameters:
+        - name: tiendaId
+          in: query
+          required: true
+          description: El ID numérico de la tienda.
+          schema:
+            type: integer # ID numérico
+          example: 1
+        - name: productoId
+          in: query
+          required: true
+          description: El ID numérico del producto.
+          schema:
+            type: integer # ID numérico
+          example: 101
+        - name: datetime
+          in: query
+          required: true
+          description: La fecha y hora (en formato ISO 8601 UTC - YYYY-MM-DDTHH:mm:ssZ) para la cual se desea consultar el precio.
+          schema:
+            type: string
+            format: date-time
+          example: "2025-05-04T10:00:00Z"
+      responses:
+        '200':
+          description: Precio final calculado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinalPriceResponse' # Schema de respuesta
+              examples:
+                withPromotion:
+                  summary: Caso con promoción aplicada
+                  value:
+                    finalPrice: 0.38
+                    basePrice: 0.50
+                    appliedPromotionId: 1 # ID numérico de la promoción
+                    discountPercentage: 25.00
+                    queryDateTime: "2025-05-04T10:00:00Z"
+                noPromotion:
+                  summary: Caso sin promoción activa
+                  value:
+                    finalPrice: 0.92
+                    basePrice: 0.92
+                    appliedPromotionId: null
+                    discountPercentage: null
+                    queryDateTime: "2025-05-05T08:00:00Z"
+                multiplePromotionsBestSelected:
+                   summary: Caso con múltiples promociones, se aplica la mejor
+                   value:
+                     finalPrice: 0.33
+                     basePrice: 0.50
+                     appliedPromotionId: 2 # ID numérico de la promoción con 35%
+                     discountPercentage: 35.00
+                     queryDateTime: "2025-05-04T09:00:00Z"
+        '400':
+          description: Parámetros de consulta inválidos (faltantes o formato incorrecto).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missingParam:
+                  value: { message: "Missing required query parameters: datetime." }
+                invalidFormat:
+                  value: { message: "Invalid datetime format (should be ISO 8601)." }
+                invalidId:
+                  value: { message: "Invalid tiendaId (must be a number)." }
+        '404':
+          description: No se encontró un precio base activo para la tienda, producto y hora especificados.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: No active base price found for the given product, store, and time.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    # --- Schemas de Input ---
+    PrecioInput: # Schema para crear un precio
+      type: object
+      required: [tiendaId, productoId, valor, tiempoVigenciaInicio, tiempoVigenciaFin]
+      properties:
+        tiendaId:
+          type: integer
+          description: ID numérico de la tienda.
+          example: 1
+        productoId:
+          type: integer
+          description: ID numérico del producto.
+          example: 101
+        valor:
+          type: number
+          format: float
+          description: El valor monetario del precio base.
+          example: 0.95
+        tiempoVigenciaInicio:
+          type: string
+          format: date-time
+          description: Fecha y hora de inicio de vigencia (ISO 8601 UTC).
+          example: "2025-07-01T00:00:00Z"
+        tiempoVigenciaFin:
+          type: string
+          format: date-time
+          description: Fecha y hora de fin de vigencia (ISO 8601 UTC). Debe ser posterior al inicio.
+          example: "2025-12-31T23:59:59Z"
+
+    PromocionDefinicionInput: # Schema para crear una definición
+      type: object
+      required: [porcentajeDescuento]
+      properties:
+        porcentajeDescuento:
+          type: number
+          format: float
+          description: El porcentaje de descuento (e.g., 25.5 para 25.5%). Debe estar entre 0 y 100.
+          example: 15.50
+
+    PromocionAplicacionInput: # Schema para crear una aplicación
+      type: object
+      required: [tiendaId, productoId, promocionId, tiempoPVigenciaInicio, tiempoPVigenciaFin]
+      properties:
+        tiendaId:
+          type: integer
+          description: ID numérico de la tienda.
+          example: 2
+        productoId:
+          type: integer
+          description: ID numérico del producto.
+          example: 101
+        promocionId:
+          type: integer
+          description: ID numérico de la Promocion_Definicion a aplicar.
+          example: 5
+        tiempoPVigenciaInicio:
+          type: string
+          format: date-time
+          description: Fecha y hora de inicio de la aplicación (ISO 8601 UTC).
+          example: "2025-08-15T00:00:00Z"
+        tiempoPVigenciaFin:
+          type: string
+          format: date-time
+          description: Fecha y hora de fin de la aplicación (ISO 8601 UTC).
+          example: "2025-08-31T23:59:59Z"
+
+    # --- Schemas de Respuesta ---
+    FinalPriceResponse: # Schema para la respuesta de la consulta
+      type: object
+      properties:
+        finalPrice:
+          type: number
+          format: float
+          description: El precio final calculado después de aplicar el mejor descuento.
+        basePrice:
+          type: number
+          format: float
+          description: El precio base encontrado para la fecha/hora.
+        appliedPromotionId:
+          type: integer
+          nullable: true
+          description: El ID numérico de la promoción que se aplicó (o null).
+        discountPercentage:
+          type: number
+          format: float
+          nullable: true
+          description: El porcentaje de descuento aplicado (o null).
+        queryDateTime:
+          type: string
+          format: date-time
+          description: La fecha/hora para la que se realizó la consulta.
+
+    Error: # Schema genérico de error
+      type: object
+      properties:
+        message:
+          type: string
+          description: Descripción del error ocurrido.
+      required:
+        - message
+
+  responses: # Definiciones genéricas de respuestas
+    NotFound:
+      description: El recurso solicitado no fue encontrado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Resource not found."
+    BadRequest:
+      description: La solicitud es inválida (faltan campos, formato incorrecto, valores inválidos).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Invalid input data: 'valor' must be a positive number."
+    InternalServerError:
+      description: Error interno del servidor.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: "Internal Server Error"
