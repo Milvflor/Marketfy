@@ -34,3 +34,18 @@ export const createProduct = async (req, res, next) => {
         next(error);
     }
 };
+
+export const getProducts = async (req, res, next) => {
+    try {
+        const query = "SELECT ProductoID as productoId, NombreProducto as nombreProducto FROM Productos ORDER BY NombreProducto;";
+        const [products] = await pool.execute(query);
+
+        res.json({
+            success: true,
+            data: products
+        });
+    } catch (error) {
+        console.error("Error obteniendo productos:", error);
+        next(error);
+    }
+};

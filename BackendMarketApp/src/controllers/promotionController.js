@@ -83,7 +83,6 @@ export const createPromotionApplication = async (req, res, next) => {
       INSERT INTO Promociones_Aplicacion (TiendaID, ProductoID, PromocionID, tiempoPVigenciaInicio, tiempoPVigenciaFin)
       VALUES (?, ?, ?, ?, ?);
     `;
-    // Usar el ID numérico de promoción validado
     const [result] = await pool.execute(insertQuery, [
         tiendaId,
         prodIdNum,
@@ -97,7 +96,6 @@ export const createPromotionApplication = async (req, res, next) => {
       aplicacionId: result.insertId
     });
   } catch (err) {
-      if (err.code === 'ER_NO_REFERENCED_ROW_2') { /* ... error FK ... */ }
       console.error("Error creating promotion application:", err);
       next(err);
   }

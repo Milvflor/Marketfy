@@ -40,3 +40,18 @@ export const createStore = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getStores = async (req, res, next) => {
+    try {
+        const query = "SELECT TiendaID as tiendaId, NombreTienda as nombreTienda FROM Tiendas ORDER BY NombreTienda;";
+        const [stores] = await pool.execute(query);
+
+        res.json({
+            success: true,
+            data: stores
+        });
+    } catch (error) {
+        console.error("Error obteniendo tiendas:", error);
+        next(error);
+    }
+};

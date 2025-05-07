@@ -89,18 +89,16 @@ export const getFinalPrice = async (req, res, next) => {
               const currentDiscount = parseFloat(promo.PorcentajeDescuento);
               if (currentDiscount > bestDiscount) {
                   bestDiscount = currentDiscount;
-                  appliedPromotionId = promo.PromocionID; // ID numérico
+                  appliedPromotionId = promo.PromocionID; 
               }
           });
-          // ... Cálculo del precio final ...
           finalPrice = Math.round((basePrice * (1 - (bestDiscount / 100.0))) * 100) / 100;
       }
   
       res.status(200).json({
         finalPrice: finalPrice,
         basePrice: basePrice,
-        appliedPromotionId: appliedPromotionId, // ID numérico o null
-        discountPercentage: bestDiscount > 0 ? bestDiscount : null,
+        appliedPromotionId: appliedPromotionId,
         queryDateTime: datetime
       });
   
@@ -110,3 +108,167 @@ export const getFinalPrice = async (req, res, next) => {
     }
   };
   
+export const getFinalPriceProducts = async (req, res, next) => {
+    const { datetime, tiendaId, productoId } = req.query;
+    const queryDate = parseISO(datetime);
+    
+    if (!isValid(queryDate)) {
+        return res.status(400).json({ message: 'Fecha y hora inválidas.' });
+    }
+
+    // Validar IDs si se proporcionan
+    if (tiendaId && isNaN(parseInt(tiendaId, 10))) {
+        return res.status(400).json({ message: 'ID de tienda inválido.' });
+    }
+    if (productoId && isNaN(parseInt(productoId, 10))) {
+        return res.status(400).json({ message: 'ID de producto inválido.' });
+    }
+    
+    const mysqlDateTime = queryDate.toISOString().slice(0, 19).replace('T', ' ');
+
+    try {
+        const query = `
+            WITH PreciosVigentes AS (
+                SELECT 
+                    p.ProductoID,
+                    p.NombreProducto,
+                    t.TiendaID,
+                    t.NombreTienda,
+                    pr.Valor as PrecioBase,
+                    pr.tiempoVigenciaInicio,
+                    pr.tiempoVigenciaFin,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY p.ProductoID, t.TiendaID 
+                        ORDER BY pr.tiempoVigenciaInicio DESC
+                    ) as rn
+                FROM Productos p
+                CROSS JOIN Tiendas t
+                LEFT JOIN Precios pr ON pr.ProductoID = p.ProductoID 
+                    AND pr.TiendaID = t.TiendaID
+                    AND ? BETWEEN pr.tiempoVigenciaInicio AND pr.tiempoVigenciaFin
+                WHERE 1=1
+                    ${tiendaId ? 'AND t.TiendaID = ?' : ''}
+                    ${productoId ? 'AND p.ProductoID = ?' : ''}
+            ),
+            PromocionesVigentes AS (
+                SELECT 
+                    pa.ProductoID,
+                    pa.TiendaID,
+                    pd.PromocionID,
+                    pd.PorcentajeDescuento,
+                    pa.tiempoPVigenciaInicio,
+                    pa.tiempoPVigenciaFin,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY pa.ProductoID, pa.TiendaID 
+                        ORDER BY pd.PorcentajeDescuento DESC
+                    ) as rn
+                FROM Promociones_Aplicacion pa
+                JOIN Promocion_Definiciones pd ON pa.PromocionID = pd.PromocionID
+                WHERE ? BETWEEN pa.tiempoPVigenciaInicio AND pa.tiempoPVigenciaFin
+                    ${tiendaId ? 'AND pa.TiendaID = ?' : ''}
+                    ${productoId ? 'AND pa.ProductoID = ?' : ''}
+            )
+            SELECT 
+                pv.ProductoID,
+                pv.NombreProducto,
+                pv.TiendaID,
+                pv.NombreTienda,
+                pv.PrecioBase,
+                pv.tiempoVigenciaInicio as PrecioVigenciaInicio,
+                pv.tiempoVigenciaFin as PrecioVigenciaFin,
+                COALESCE(prom.PorcentajeDescuento, 0) as DescuentoMaximo,
+                CASE 
+                    WHEN prom.PorcentajeDescuento IS NOT NULL 
+                    THEN ROUND(pv.PrecioBase * (1 - prom.PorcentajeDescuento / 100), 2)
+                    ELSE pv.PrecioBase 
+                END as PrecioFinal,
+                prom.PromocionID,
+                prom.tiempoPVigenciaInicio as PromocionVigenciaInicio,
+                prom.tiempoPVigenciaFin as PromocionVigenciaFin
+            FROM PreciosVigentes pv
+            LEFT JOIN PromocionesVigentes prom ON 
+                prom.ProductoID = pv.ProductoID 
+                AND prom.TiendaID = pv.TiendaID
+                AND prom.rn = 1
+            WHERE pv.rn = 1
+            ORDER BY pv.ProductoID, pv.TiendaID;
+        `;
+
+        // Construir el array de parámetros dinámicamente
+        const queryParams = [mysqlDateTime];
+        
+        // Agregar tiendaId si existe
+        if (tiendaId) {
+            queryParams.push(tiendaId);
+        }
+        
+        // Agregar productoId si existe
+        if (productoId) {
+            queryParams.push(productoId);
+        }
+        
+        // Agregar mysqlDateTime para la segunda parte de la consulta
+        queryParams.push(mysqlDateTime);
+        
+        // Agregar tiendaId y productoId nuevamente si existen
+        if (tiendaId) {
+            queryParams.push(tiendaId);
+        }
+        if (productoId) {
+            queryParams.push(productoId);
+        }
+
+        const [results] = await pool.execute(query, queryParams);
+
+        // Procesar resultados para agrupar promociones por producto y tienda
+        const processedResults = results.reduce((acc, row) => {
+            const key = `${row.ProductoID}-${row.TiendaID}`;
+            
+            if (!acc[key]) {
+                acc[key] = {
+                    productoId: row.ProductoID,
+                    nombreProducto: row.NombreProducto,
+                    tienda: {
+                        tiendaId: row.TiendaID,
+                        nombreTienda: row.NombreTienda
+                    },
+                    precioBase: parseFloat(row.PrecioBase || 0),
+                    precioFinal: parseFloat(row.PrecioFinal || row.PrecioBase || 0),
+                    vigenciaPrecio: {
+                        inicio: row.PrecioVigenciaInicio,
+                        fin: row.PrecioVigenciaFin
+                    },
+                    promociones: []
+                };
+            }
+
+            // Agregar promoción si existe
+            if (row.PromocionID) {
+                acc[key].promociones.push({
+                    promocionId: row.PromocionID,
+                    descuento: parseFloat(row.DescuentoMaximo),
+                    vigencia: {
+                        inicio: row.PromocionVigenciaInicio,
+                        fin: row.PromocionVigenciaFin
+                    }
+                });
+            }
+
+            return acc;
+        }, {});
+
+        res.status(200).json({
+            success: true,
+            data: Object.values(processedResults),
+            queryDateTime: datetime,
+            filters: {
+                tiendaId: tiendaId || null,
+                productoId: productoId || null
+            }
+        });
+
+    } catch (error) {
+        console.error("Error obteniendo precios y promociones:", error);
+        next(error);
+    }
+};

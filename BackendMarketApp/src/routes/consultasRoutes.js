@@ -1,5 +1,5 @@
 import express from 'express';
-import { getFinalPrice, getAllStores } from '../controllers/consultasController.js'
+import { getFinalPrice, getAllStores, getFinalPriceProducts } from '../controllers/consultasController.js'
 const router = express.Router();
 
 router.get('/', (req, res) => {
@@ -8,5 +8,6 @@ router.get('/', (req, res) => {
 
 router.get('/queries/final-price', getFinalPrice);
 router.get('/allStores', getAllStores);
+router.get('/getFinalPriceProducts', getFinalPriceProducts);
 
 export default router;
