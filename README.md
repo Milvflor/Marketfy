@@ -3,15 +3,85 @@ Es un sistema de gestión de precios y promociones diseñado para administrar y 
 
 **Home Page**
 <img width="1111" alt="Screenshot 2025-05-06 at 10 10 03 PM" src="https://github.com/user-attachments/assets/ac008104-d15b-40ed-835e-a03b3a0149f2" />
+
 **Consultas**
 <img width="1172" alt="Screenshot 2025-05-06 at 10 09 46 PM" src="https://github.com/user-attachments/assets/98cb9ece-f955-43a3-9a21-2a0067a9e439" />
+
 **Vigencia de Promociones**
+
 <img width="815" alt="Screenshot 2025-05-06 at 10 09 51 PM" src="https://github.com/user-attachments/assets/e117bce2-27d9-47c8-ad33-485a551d21bb" />
 
 ## Ejecución
 <a name='ejecucion'></a>
 1. Clone el repositorio en su computadora local.
-2. Ejecute `docker-compose up --build -d` para construir y levantar los contenedores de la aplicación.
+2. Descomprima el archivo `Proyecto.zip`.
+3. Desde el terminal, ingrese a la carpeta **Proyecto**  y ejecute `cd Proyecto/`.
+   ```
+   Estructura de repositorio (luego de descomprimir)
+   .
+    ├── Proyecto
+    │   ├── app-back
+    │   │   ├── Dockerfile
+    │   │   ├── index.js
+    │   │   ├── package-lock.json
+    │   │   ├── package.json
+    │   │   └── src
+    │   │       ├── config
+    │   │       │   └── db.js
+    │   │       ├── controllers
+    │   │       │   ├── consultasController.js
+    │   │       │   ├── priceController.js
+    │   │       │   ├── productController.js
+    │   │       │   ├── promotionController.js
+    │   │       │   └── storeController.js
+    │   │       ├── docs
+    │   │       │   └── swagger.yaml
+    │   │       ├── models
+    │   │       │   └── Event.js
+    │   │       └── routes
+    │   │           ├── consultasRoutes.js
+    │   │           ├── eventRoutes.js
+    │   │           ├── priceRoutes.js
+    │   │           ├── productRoutes.js
+    │   │           ├── promotionRoutes.js
+    │   │           └── storeRoutes.js
+    │   ├── app-front
+    │   │   ├── Dockerfile
+    │   │   ├── README.md
+    │   │   ├── index.html
+    │   │   ├── package-lock.json
+    │   │   ├── package.json
+    │   │   ├── public
+    │   │   │   ├── logo-with-shadow.png
+    │   │   │   └── vite.svg
+    │   │   ├── src
+    │   │   │   ├── App.jsx
+    │   │   │   ├── assets
+    │   │   │   │   └── react.svg
+    │   │   │   ├── components
+    │   │   │   │   ├── ErrorFallback.jsx
+    │   │   │   │   ├── Loading.jsx
+    │   │   │   │   └── PricingTable.jsx
+    │   │   │   ├── general
+    │   │   │   │   ├── Layout.jsx
+    │   │   │   │   ├── NotFound.jsx
+    │   │   │   │   ├── RoutePaths.jsx
+    │   │   │   │   └── Router.jsx
+    │   │   │   ├── home
+    │   │   │   │   └── Home.jsx
+    │   │   │   ├── index.css
+    │   │   │   └── main.jsx
+    │   │   └── vite.config.js
+    │   ├── docker-compose.yml
+    │   └── init.sql
+    ├── Proyecto.zip
+    ├── README.md
+    └── documents
+        ├── Precios y Promociones API.postman_collection.json
+        └── normalizaciones.xlsx
+   ```
+   
+4. Dentro de la carpeta `Proyecto`, ejecute `docker-compose up --build -d` para construir y levantar los contenedores de la aplicación.
 
 #### Caso de Exito
   <img width="568" alt="Screenshot 2025-05-07 at 1 05 30 AM" src="https://github.com/user-attachments/assets/24ae0284-6751-4229-9418-4067c6aa98d5" />
@@ -20,7 +90,7 @@ Es un sistema de gestión de precios y promociones diseñado para administrar y 
   <img width="886" alt="Screenshot 2025-05-07 at 1 06 58 AM" src="https://github.com/user-attachments/assets/81542894-864d-4505-aac4-db2e4ae25403" />
 
 > Si encuentra errores, ejecute `docker-compose down -v` para desmontar completamente los contenedores y volúmenes. Luego, vuelva a ejecutar el *paso 2* de esta sección.
-3. Con el docker arriba, diríjase al [HomePage](http://localhost:3000).
+5. Con el docker arriba, diríjase al [HomePage](http://localhost:3000).
 
 ## Desarrollo (Entregables)
 ### 1. Modelo de datos:
@@ -38,7 +108,7 @@ Generación de nuevas claves primarias (si es necesario) y depuración de depend
 <img width="866" alt="Screenshot 2025-05-06 at 8 19 24 PM" src="https://github.com/user-attachments/assets/664f24d6-12da-4df6-9f1f-0995635d032f" />
 
 #### b. Archivo con las sentencias DDL y datos de ejemplo (MySQL).
-El archivo [./init.sql](./init.sql) contiene el DDL y los datos de ejemplo.
+El archivo ./Proyecto/init.sql contiene el DDL y los datos de ejemplo.
 Este script se ejecuta automáticamente al inicializar el contenedor de Docker de la base de datos.
 
 ### 2. Colección de Postman 
