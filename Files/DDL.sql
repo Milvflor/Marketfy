@@ -1,3 +1,4 @@
+
 -- Usar InnoDB para soporte de Claves Foráneas
 SET default_storage_engine=InnoDB;
 
@@ -12,6 +13,7 @@ CREATE TABLE Productos (
     ProductoID INT AUTO_INCREMENT PRIMARY KEY,
     NombreProducto VARCHAR(150) NOT NULL
 );
+ALTER TABLE Productos AUTO_INCREMENT = 100;
 
 -- Tabla para Definición de Promociones
 CREATE TABLE Promocion_Definiciones (
@@ -25,7 +27,6 @@ CREATE TABLE Precios (
     PrecioRegistroID INT AUTO_INCREMENT PRIMARY KEY, -- PK Sustituta
     TiendaID INT NOT NULL,
     ProductoID INT NOT NULL,
-    VersionPrecio VARCHAR(10) NOT NULL,
     Valor DECIMAL(10, 2) NOT NULL,
     tiempoVigenciaInicio DATETIME NOT NULL,
     tiempoVigenciaFin DATETIME NOT NULL,
@@ -37,20 +38,6 @@ CREATE TABLE Precios (
     -- Restricciones de Negocio
     CONSTRAINT chk_precio_positivo CHECK (Valor >= 0),
     CONSTRAINT chk_precio_fechas_validas CHECK (tiempoVigenciaFin > tiempoVigenciaInicio)
-
-    /*
-    -- IMPORTANTE: Restricción de No Solapamiento (REQ 2.e)
-    -- MySQL no tiene un constraint directo tipo EXCLUDE.
-    -- Se debe implementar mediante:
-    -- 1. Lógica en la capa de aplicación ANTES de insertar/actualizar.
-    -- 2. Triggers (BEFORE INSERT, BEFORE UPDATE) que verifiquen si existe
-    --    otro registro para el mismo TiendaID y ProductoID cuyo rango de fechas
-    --    se solape con el nuevo rango. Si existe, cancelar la operación.
-    -- Ejemplo de consulta a usar dentro del trigger/app:
-    -- SELECT 1 FROM Precios
-    -- WHERE TiendaID = NEW.TiendaID AND ProductoID = NEW.ProductoID AND PrecioRegistroID != NEW.PrecioRegistroID -- (En caso de UPDATE)
-    -- AND NEW.tiempoVigenciaInicio < tiempoVigenciaFin AND NEW.tiempoVigenciaFin > tiempoVigenciaInicio;
-    */
 );
 
 -- Índice para búsquedas de precios
