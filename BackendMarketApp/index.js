@@ -7,6 +7,11 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import fileUpload from 'express-fileupload';
 import eventRoutes from './src/routes/eventRoutes.js';
+import consultasRoutes from './src/routes/consultasRoutes.js'
+import preciosRoutes from './src/routes/priceRoutes.js'
+import promocionesRoutes from './src/routes/promotionRoutes.js'
+import tiendaRoutes from './src/routes/storeRoutes.js'
+import productosRoutes from './src/routes/productRoutes.js'
 import pool from './src/config/db.js';
 import dotenv from 'dotenv';
 import swaggerUi from 'swagger-ui-express';
@@ -75,7 +80,12 @@ app.get('/', (req, res) => {
     });
 });
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-app.use('/api/v1/market', eventRoutes);
+app.use('/api/v1/market', consultasRoutes);
+app.use('/api/v1/precios', preciosRoutes);
+app.use('/api/v1/promotions', promocionesRoutes);
+app.use('/api/v1/tienda', tiendaRoutes);
+app.use('/api/v1/productos', productosRoutes);
+
 
 await connectDB();
 app.listen(process.env.PORT, () => {

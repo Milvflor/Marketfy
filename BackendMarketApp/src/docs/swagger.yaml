@@ -4,9 +4,13 @@ info:
   description: API para gestionar precios base y promociones de productos por tienda (usando IDs numéricos incrementales donde aplica), y consultar precios finales.
   version: 1.2.0
 servers:
-  - url: http://localhost:3000/api/v1
+  - url: http://localhost:4000/api/v1
     description: Servidor de Desarrollo Local
 tags:
+  - name: Tiendas
+    description: Gestión de tiendas (CRUD completo no definido aquí).
+  - name: Productos
+    description: Gestión de productos (CRUD completo no definido aquí).
   - name: Precios
     description: Operaciones relacionadas con los precios base históricos.
   - name: Promociones Definiciones
@@ -15,18 +19,121 @@ tags:
     description: Operaciones para aplicar promociones definidas a tiendas/productos específicos.
   - name: Consultas
     description: Endpoints para realizar consultas complejas.
-  - name: Tiendas
-    description: Gestión de tiendas (CRUD completo no definido aquí).
-  - name: Productos
-    description: Gestión de productos (CRUD completo no definido aquí).
 
 paths:
-  /prices:
+  /tienda/createStore:
+      post:
+        tags:
+          - Tiendas
+        summary: Crea una nueva tienda.
+        description: Registra una nueva tienda en el sistema. La BD genera un ID numérico único.
+        operationId: createStore
+        requestBody:
+          description: Nombre de la nueva tienda.
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreInput'
+              examples:
+                valid:
+                  summary: Crear Market D
+                  value:
+                    nombreTienda: "Market D"
+                emptyName:
+                  summary: Nombre vacío (inválido)
+                  value:
+                    nombreTienda: "   "
+                missingField:
+                  summary: Falta el campo nombreTienda
+                  value:
+                    otroCampo: "valor"
+        responses:
+          '201':
+            description: Tienda creada exitosamente.
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    message:
+                      type: string
+                      example: Tienda creada exitosamente.
+                    tiendaId:
+                      type: integer
+                      description: El ID numérico autoincremental de la tienda creada.
+                      example: 4
+                    nombreTienda:
+                      type: string
+                      example: "Market D"
+                example:
+                  message: Tienda creada exitosamente.
+                  tiendaId: 4
+                  nombreTienda: "Market D"
+          '400':
+            $ref: '#/components/responses/BadRequest'
+          '500':
+            $ref: '#/components/responses/InternalServerError'
+
+  /productos/createProduct:
+    post:
+      tags:
+        - Productos
+      summary: Crea un nuevo producto.
+      description: Registra un nuevo producto en el sistema. La BD genera un ID numérico único.
+      operationId: createProduct
+      requestBody:
+        description: Nombre del nuevo producto.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+            examples:
+              valid:
+                summary: Crear Pan Integral
+                value:
+                  nombreProducto: "Pan Integral 500g"
+              emptyName:
+                summary: Nombre vacío (inválido)
+                value:
+                  nombreProducto: ""
+              missingField:
+                summary: Falta el campo nombreProducto
+                value: {}
+      responses:
+        '201':
+          description: Producto creado exitosamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Producto creado exitosamente.
+                  productoId:
+                    type: integer
+                    description: El ID numérico autoincremental del producto creado.
+                    example: 102
+                  nombreProducto:
+                    type: string
+                    example: "Pan Integral 500g"
+              example:
+                message: Producto creado exitosamente.
+                productoId: 102
+                nombreProducto: "Pan Integral 500g"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /precios/createPrice:
     post:
       tags:
         - Precios
       summary: Crea un nuevo registro de precio histórico.
-      description: Añade una nueva entrada de precio para un producto en una tienda específica (usando sus IDs numéricos), válido durante un intervalo de tiempo. No permite solapamiento con precios existentes para la misma tienda y producto. La BD genera un ID único para este registro de precio.
+      description: Añade una nueva entrada de precio para un producto en una tienda específica (usando sus IDs numéricos), válido durante un intervalo de tiempo. Verifica la existencia de la tienda y el producto, y no permite solapamiento con precios existentes para la misma combinación. La BD genera un ID único para este registro de precio.
       operationId: createPrice
       requestBody:
         description: Datos del nuevo precio a crear.
@@ -34,18 +141,18 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PrecioInput' # Schema de entrada de Precio
+              $ref: '#/components/schemas/PrecioInput'
             examples:
               valid:
                 summary: Ejemplo de precio válido
                 value:
-                  tiendaId: 1 # ID Numérico
-                  productoId: 101 # ID Numérico
+                  tiendaId: 1
+                  productoId: 101
                   valor: 0.95
                   tiempoVigenciaInicio: "2025-07-01T00:00:00Z"
                   tiempoVigenciaFin: "2025-12-31T23:59:59Z"
               invalidDateRange:
-                summary: Fechas inválidas (fin antes de inicio)
+                summary: Fechas inválidas (fin antes de inicio o formato incorrecto)
                 value:
                   tiendaId: 1
                   productoId: 101
@@ -53,7 +160,7 @@ paths:
                   tiempoVigenciaInicio: "2025-08-01T00:00:00Z"
                   tiempoVigenciaFin: "2025-07-31T23:59:59Z"
               invalidValue:
-                summary: Valor de precio negativo
+                summary: Valor de precio negativo o no numérico
                 value:
                   tiendaId: 1
                   productoId: 101
@@ -68,11 +175,19 @@ paths:
                   # valor: 0.95 # Campo faltante
                   tiempoVigenciaInicio: "2025-07-01T00:00:00Z"
                   tiempoVigenciaFin: "2025-12-31T23:59:59Z"
-              nonExistentFK:
+              nonExistentStore:
                  summary: ID de tienda que no existe
                  value:
                    tiendaId: 999 # ID Numérico inválido
                    productoId: 101
+                   valor: 0.95
+                   tiempoVigenciaInicio: "2025-07-01T00:00:00Z"
+                   tiempoVigenciaFin: "2025-12-31T23:59:59Z"
+              nonExistentProduct:
+                 summary: ID de producto que no existe
+                 value:
+                   tiendaId: 1
+                   productoId: 888 # ID Numérico inválido
                    valor: 0.95
                    tiempoVigenciaInicio: "2025-07-01T00:00:00Z"
                    tiempoVigenciaFin: "2025-12-31T23:59:59Z"
@@ -86,33 +201,48 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: Price created successfully.
-                  precioRegistroId: # El ID del registro de PRECIO
+                    example: Precio creado exitosamente
+                  precioRegistroId:
                     type: integer
                     description: El ID numérico autoincremental del registro de precio creado.
-                    example: 105
+                    example: 106
               example:
-                message: Price created successfully.
-                precioRegistroId: 105
-        '400':
-           description: Solicitud inválida (campos faltantes, formato, fechas, o FK inexistente para Tienda/Producto).
+                message: Precio creado exitosamente
+                precioRegistroId: 106
+        '400': # Errores de validación de entrada
+           description: Solicitud inválida (campos faltantes, formato incorrecto de IDs/valor/fechas, o rango de fechas ilógico).
            content:
              application/json:
                schema:
                  $ref: '#/components/schemas/Error'
                examples:
+                 missing:
+                   value: { message: "Valores faltantes requeridos: valor, ..." }
+                 invalidDate:
+                   value: { message: "Rango de fecha inválido (formato ISO 8601 esperado y fin debe ser posterior a inicio)." }
+                 invalidValue:
+                   value: { message: "Valor de precio inválido (debe ser un número no negativo)." }
                  invalidId:
-                   value: { message: "Invalid productoId (must be a number)." }
-                 fkViolation:
-                   value: { message: "Invalid reference ID (Store ID '999' does not exist)." }
-        '409':
+                   value: { message: "ID de tienda inválido (debe ser un número)." }
+        '404': # Error de FK no encontrada
+           description: No se encontró la Tienda o el Producto especificado.
+           content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/Error'
+               examples:
+                 storeNotFound:
+                   value: { message: "La tienda con ID '999' no existe." }
+                 productNotFound:
+                   value: { message: "El producto con ID '888' no existe." }
+        '409': # Error de solapamiento
           description: Conflicto - El período de precio se solapa con uno existente para la misma tienda y producto.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                message: Price period overlaps with an existing price for this store and product.
+                message: El rango de fechas se solapa con un precio existente para el mismo producto y tienda.
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -156,10 +286,10 @@ paths:
                   promocionId: # El ID numérico de la DEFINICIÓN
                     type: integer
                     description: El ID numérico autoincremental de la definición creada.
-                    example: 5
+                    example: 1
               example:
                 message: Promotion definition created successfully.
-                promocionId: 5
+                promocionId: 1
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -185,7 +315,7 @@ paths:
                 value:
                   tiendaId: 2       # ID Numérico
                   productoId: 101    # ID Numérico
-                  promocionId: 5    # ID Numérico (de la definición)
+                  promocionId: 1
                   tiempoPVigenciaInicio: "2025-08-15T00:00:00Z"
                   tiempoPVigenciaFin: "2025-08-31T23:59:59Z"
               invalidDateRange:
@@ -193,7 +323,7 @@ paths:
                 value:
                   tiendaId: 2
                   productoId: 101
-                  promocionId: 5
+                  promocionId: 1
                   tiempoPVigenciaInicio: "2025-09-01T00:00:00Z"
                   tiempoPVigenciaFin: "2025-08-31T23:59:59Z"
               missingField:
@@ -201,7 +331,7 @@ paths:
                 value:
                   tiendaId: 2
                   productoId: 101
-                  # promocionId: 5 # Campo faltante
+                  # promocionId: 1 # Campo faltante
                   tiempoPVigenciaInicio: "2025-08-15T00:00:00Z"
                   tiempoPVigenciaFin: "2025-08-31T23:59:59Z"
               nonExistentFK:
@@ -244,7 +374,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /queries/final-price:
+  /market/queries/final-price:
     get:
       tags:
         - Consultas
@@ -273,7 +403,7 @@ paths:
           schema:
             type: string
             format: date-time
-          example: "2025-05-04T10:00:00Z"
+          example: "2025-07-01T00:00:00Z"
       responses:
         '200':
           description: Precio final calculado exitosamente.
@@ -289,7 +419,7 @@ paths:
                     basePrice: 0.50
                     appliedPromotionId: 1 # ID numérico de la promoción
                     discountPercentage: 25.00
-                    queryDateTime: "2025-05-04T10:00:00Z"
+                    queryDateTime: "2025-07-01T00:00:00Z"
                 noPromotion:
                   summary: Caso sin promoción activa
                   value:
@@ -329,10 +459,137 @@ paths:
                 message: No active base price found for the given product, store, and time.
         '500':
           $ref: '#/components/responses/InternalServerError'
+  
+  /market/allStores:
+    get:
+      tags:
+        - Consultas
+      summary: Obtiene una lista paginada de tiendas.
+      description: Retorna una lista de tiendas registradas, permitiendo paginación a través de los parámetros 'page' y 'limit'. Por defecto, muestra 5 tiendas por página.
+      operationId: getAllStores
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Número de la página a obtener. Comienza en 1.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          required: false
+          description: Número máximo de tiendas a retornar por página.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100 # Puedes definir un máximo razonable
+            default: 5
+          example: 5
+      responses:
+        '200':
+          description: Lista de tiendas obtenida exitosamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Tiendas obtenidas exitosamente.
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Store' # Referencia al schema de Tienda completo
+                  pagination:
+                    $ref: '#/components/schemas/Pagination' # Referencia al schema de Paginación
+              examples:
+                defaultPage: # Ejemplo para la primera página con 5 items
+                  summary: Primera página con 5 tiendas
+                  value:
+                    message: Tiendas obtenidas exitosamente.
+                    data:
+                      - TiendaID: 1
+                        NombreTienda: "Market A"
+                      - TiendaID: 2
+                        NombreTienda: "Super B"
+                      - TiendaID: 3
+                        NombreTienda: "Kwik C"
+                      - TiendaID: 4
+                        NombreTienda: "Tienda D"
+                      - TiendaID: 5
+                        NombreTienda: "Market Express"
+                    pagination:
+                      currentPage: 1
+                      itemsPerPage: 5
+                      totalItems: 23 # Asumiendo 23 tiendas en total
+                      totalPages: 5  # 23 / 5 = 4.6 -> 5 páginas
+                      hasNextPage: true
+                      hasPreviousPage: false
+                specificPage: # Ejemplo para la página 2 con límite de 3
+                  summary: Página 2 con límite de 3 tiendas
+                  value:
+                    message: Tiendas obtenidas exitosamente.
+                    data:
+                      - TiendaID: 4
+                        NombreTienda: "Tienda D"
+                      - TiendaID: 5
+                        NombreTienda: "Market Express"
+                      - TiendaID: 6
+                        NombreTienda: "MiniMarket Z"
+                    pagination:
+                      currentPage: 2
+                      itemsPerPage: 3
+                      totalItems: 23
+                      totalPages: 8 # 23 / 3 = 7.6 -> 8 páginas
+                      hasNextPage: true
+                      hasPreviousPage: true
+                emptyResult: # Ejemplo si no hay tiendas o se pide una página fuera de rango
+                  summary: Sin resultados (ej. página más allá del total)
+                  value:
+                    message: Tiendas obtenidas exitosamente.
+                    data: []
+                    pagination:
+                      currentPage: 10
+                      itemsPerPage: 5
+                      totalItems: 23
+                      totalPages: 5
+                      hasNextPage: false
+                      hasPreviousPage: true # Si totalPages es 5 y pides la 10, la 9 existió
+        '400':
+          description: Parámetros de consulta 'page' o 'limit' inválidos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Los parámetros \"page\" y \"limit\" deben ser números positivos."
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
 components:
   schemas:
-    # --- Schemas de Input ---
+    StoreInput:
+      type: object
+      required:
+        - nombreTienda
+      properties:
+        nombreTienda:
+          type: string
+          description: Nombre de la tienda. No puede estar vacío.
+          example: "Supermercado Sur"
+
+    ProductInput:
+      type: object
+      required:
+        - nombreProducto
+      properties:
+        nombreProducto:
+          type: string
+          description: Nombre del producto. No puede estar vacío.
+          example: "Yogur Natural 1L"
+
     PrecioInput: # Schema para crear un precio
       type: object
       required: [tiendaId, productoId, valor, tiempoVigenciaInicio, tiempoVigenciaFin]
@@ -360,6 +617,7 @@ components:
           format: date-time
           description: Fecha y hora de fin de vigencia (ISO 8601 UTC). Debe ser posterior al inicio.
           example: "2025-12-31T23:59:59Z"
+      
 
     PromocionDefinicionInput: # Schema para crear una definición
       type: object
@@ -386,7 +644,7 @@ components:
         promocionId:
           type: integer
           description: ID numérico de la Promocion_Definicion a aplicar.
-          example: 5
+          example: 1
         tiempoPVigenciaInicio:
           type: string
           format: date-time
@@ -397,6 +655,54 @@ components:
           format: date-time
           description: Fecha y hora de fin de la aplicación (ISO 8601 UTC).
           example: "2025-08-31T23:59:59Z"
+
+    Store:
+      type: object
+      properties:
+        TiendaID:
+          type: integer
+          description: ID numérico único de la tienda.
+          example: 1
+          readOnly: true
+        NombreTienda:
+          type: string
+          description: Nombre de la tienda.
+          example: "Market A"
+      required:
+        - TiendaID
+        - NombreTienda
+    Pagination: # Schema para la metadata de paginación
+      type: object
+      properties:
+        currentPage:
+          type: integer
+          description: La página actual de resultados.
+          example: 1
+        itemsPerPage:
+          type: integer
+          description: El número de items solicitados por página.
+          example: 5
+        totalItems:
+          type: integer
+          description: El número total de items disponibles.
+          example: 23
+        totalPages:
+          type: integer
+          description: El número total de páginas disponibles.
+          example: 5
+        hasNextPage:
+          type: boolean
+          description: Indica si hay una página siguiente.
+        hasPreviousPage:
+          type: boolean
+          description: Indica si hay una página anterior.
+      required:
+        - currentPage
+        - itemsPerPage
+        - totalItems
+        - totalPages
+        - hasNextPage
+        - hasPreviousPage
 
     # --- Schemas de Respuesta ---
     FinalPriceResponse: # Schema para la respuesta de la consulta

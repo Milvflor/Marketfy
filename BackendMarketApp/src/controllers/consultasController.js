@@ -1,6 +1,53 @@
 import pool from '../config/db.js';
 import { parseISO, isValid } from 'date-fns';
 
+export const getAllStores = async (req, res, next) => {
+  const rawPage = req.query.page;
+  const rawLimit = req.query.limit;
+
+  let page = parseInt(rawPage, 10);
+  let limit = parseInt(rawLimit, 10);
+
+  if (isNaN(page) || page < 1) {
+      page = 1;
+  }
+  if (isNaN(limit) || limit < 1) {
+      limit = 5;
+  }
+  if (limit > 100) {
+      limit = 100;
+  }
+
+  const offset = (page - 1) * limit;
+
+  try {
+      const storesQuery = `SELECT TiendaID, NombreTienda FROM Tiendas ORDER BY TiendaID ASC LIMIT ${limit} OFFSET ${offset};`;
+
+      const [stores] = await pool.execute(storesQuery); 
+
+      const countQuery = 'SELECT COUNT(*) AS totalItems FROM Tiendas;';
+      const [countResult] = await pool.execute(countQuery);
+      const totalItems = countResult[0].totalItems;
+      const totalPages = Math.ceil(totalItems / limit);
+
+      res.status(200).json({
+          message: 'Tiendas obtenidas exitosamente.',
+          data: stores,
+          pagination: {
+              currentPage: page,
+              itemsPerPage: limit,
+              totalItems: totalItems,
+              totalPages: totalPages,
+              hasNextPage: page < totalPages,
+              hasPreviousPage: page > 1 && totalItems > 0 
+          }
+      });
+  } catch (error) {
+      console.error("Error obteniendo tiendas:", error);
+      next(error);
+  }
+};
+
 export const getFinalPrice = async (req, res, next) => {
     const { tiendaId, productoId, datetime } = req.query;
 

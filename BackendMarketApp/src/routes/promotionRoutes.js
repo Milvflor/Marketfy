@@ -5,11 +5,9 @@ import { getFinalPrice } from '../controllers/consultasController.js'
 const router = express.Router();
 
 router.get('/', (req, res) => {
-    res.json({ message: 'API de eventos de Walletfy, version 1.0.0' });
+    res.json({ message: 'API de Promociones de Marketfy, version 1.0.0' });
 });
 
-router.post('/createPrice', createPrice);
-router.post('/promotions/definitions', createPromotionDefinition);
-router.post('/promotions/applications',createPromotionApplication);
-router.post('/queries/final-price', getFinalPrice);
+router.post('/definitions', createPromotionDefinition);
+router.post('/applications',createPromotionApplication);
 export default router;

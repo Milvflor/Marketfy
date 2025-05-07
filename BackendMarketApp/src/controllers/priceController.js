@@ -1,11 +1,12 @@
 //import Event from '../models/Event.js';
+import pool from '../config/db.js';
+import { parseISO, isBefore, isValid } from 'date-fns';
 
 export const createPrice = async (req, res) => {
   try {
     const {
       tiendaId,
       productoId,
-      versionPrecio,
       valor,
       tiempoVigenciaInicio,
       tiempoVigenciaFin,
@@ -13,13 +14,23 @@ export const createPrice = async (req, res) => {
     if (
       !tiendaId ||
       !productoId ||
-      !versionPrecio ||
       valor === undefined ||
       !tiempoVigenciaInicio ||
       !tiempoVigenciaFin
     ) {
       return res.status(400).json({ message: "Valores faltantes requeridos" });
     }
+
+    const storeIdNum = parseInt(tiendaId, 10);
+    const prodIdNum = parseInt(productoId, 10);
+
+    if (isNaN(storeIdNum)) {
+      return res.status(400).json({ message: "ID de tienda inválido (debe ser un número)." });
+    }
+    if (isNaN(prodIdNum)) {
+      return res.status(400).json({ message: "ID de producto inválido (debe ser un número)." });
+    }
+
     if (isNaN(parseFloat(valor)) || parseFloat(valor) < 0) {
       return res.status(400).json({ message: "Valor de precio inválido" });
     }
@@ -35,7 +46,25 @@ export const createPrice = async (req, res) => {
     }
 
     try {
-      // Consulta para verificar solapamiento de fechas
+      // Verificar si existe Tienda
+      const checkStoreQuery = 'SELECT 1 FROM Tiendas WHERE TiendaID = ? LIMIT 1;';
+      const [storeRows] = await pool.execute(checkStoreQuery, [storeIdNum]);
+      if (storeRows.length === 0) {
+          return res.status(404).json({ 
+              message: `La tienda con ID '${storeIdNum}' no existe.`
+          });
+      }
+
+      // Verificar si existe Producto
+      const checkProductQuery = 'SELECT 1 FROM Productos WHERE ProductoID = ? LIMIT 1;';
+      const [productRows] = await pool.execute(checkProductQuery, [prodIdNum]);
+      if (productRows.length === 0) {
+          return res.status(404).json({
+              message: `El producto con ID '${prodIdNum}' no existe.`
+          });
+      }
+
+      // Verificar solapamiento de fechas
       const overlapCheckQuery = `
               SELECT 1 FROM Precios
               WHERE TiendaID = ?
@@ -62,17 +91,19 @@ export const createPrice = async (req, res) => {
 
       // Insertando el nuevo precio
       const insertQuery = `
-              INSERT INTO Precios (TiendaID, ProductoID, VersionPrecio, Valor, tiempoVigenciaInicio, tiempoVigenciaFin)
-              VALUES (?, ?, ?, ?, ?, ?);
+              INSERT INTO Precios (TiendaID, ProductoID, Valor, tiempoVigenciaInicio, tiempoVigenciaFin)
+              VALUES (?, ?, ?, ?, ?);
             `;
+
+      const tiempoVigenciaInicio_ = new Date(tiempoVigenciaInicio).toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
+      const tiempoVigenciaFin_ = new Date(tiempoVigenciaFin).toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
 
       const [result] = await pool.execute(insertQuery, [
         tiendaId,
         productoId,
-        versionPrecio,
         parseFloat(valor),
-        tiempoVigenciaInicio,
-        tiempoVigenciaFin,
+        tiempoVigenciaInicio_,
+        tiempoVigenciaFin_,
       ]);
 
       res.status(201).json({
